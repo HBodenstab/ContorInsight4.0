@@ -3,10 +3,12 @@ from typing import Optional
 
 import PyPDF2
 import docx
+from pdf2image import convert_from_path
+import pytesseract
 
 def extract_text_from_file(file_path: str, original_filename: str) -> str:
     """
-    Extract text from a PDF or DOCX file.
+    Extract text from a PDF or DOCX file. Uses OCR fallback for PDFs if needed.
     Args:
         file_path (str): The path to the file on disk.
         original_filename (str): The original filename (for logging or future use).
@@ -20,7 +22,11 @@ def extract_text_from_file(file_path: str, original_filename: str) -> str:
 
     try:
         if ext == ".pdf":
-            return _extract_text_from_pdf(file_path)
+            text = _extract_text_from_pdf(file_path)
+            if not text.strip():
+                # Fallback to OCR if PyPDF2 extraction is empty
+                text = _extract_text_from_pdf_ocr(file_path)
+            return text
         elif ext == ".docx":
             return _extract_text_from_docx(file_path)
         else:
@@ -40,6 +46,16 @@ def _extract_text_from_pdf(file_path: str) -> str:
     except Exception as e:
         raise ValueError(f"Error reading PDF file: {e}")
     return "\n".join(text)
+
+def _extract_text_from_pdf_ocr(file_path: str) -> str:
+    try:
+        images = convert_from_path(file_path)
+        text = []
+        for image in images:
+            text.append(pytesseract.image_to_string(image))
+        return "\n".join(text)
+    except Exception as e:
+        raise ValueError(f"Error during OCR extraction: {e}")
 
 def _extract_text_from_docx(file_path: str) -> str:
     text = []
